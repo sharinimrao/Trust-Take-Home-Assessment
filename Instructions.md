@@ -14,7 +14,7 @@ Create a simple, usable chat interface where someone can enter and submit a prom
 
 ### 2. Connect the front end to the router
 
-Send each submitted prompt to `POST /v1/route` and use the returned `selected_model` value. Show the routing decision clearly in the interface so we can see exactly which model the classifier chose for that prompt.
+Send each submitted prompt to `POST /v1/route` and use the returned `selected_model` value. Show the routing decision clearly in the interface so we can see exactly which model the router selected and whether the selection mode was `scored` or `random`.
 
 Keep the integration clean enough that the routing result could be handed to a model provider or another delivery layer. Document any mapping, fallback, or compatibility decisions you make.
 
@@ -26,15 +26,14 @@ You may use a browser extension, userscript, local companion service, or another
 
 ## Deliverables
 
-By the start of our conversation on **Saturday, August 8, 2026**, please send me:
+Please plan for the following on **Saturday, August 8, 2026**:
 
-- Your updated repository, including all code and documentation needed to run your work.
-- A short README update that explains your setup, architecture, and any unfinished pieces.
-- A list of any API, token, or other project costs you incurred. Track the amount and purpose of each expense and include receipts. You are not expected to spend money unnecessarily.
+- Send me your updated repository before our conversation, including all code and documentation needed to run your work.
+- Include a short README update that explains your setup, architecture, and any unfinished pieces.
+- If you incur API, token, or other project costs, track the amount and purpose of each expense and send me the receipts. You are not expected to spend money unnecessarily.
+- Be ready for a **20-minute conversation** where you demonstrate what you built, explain your technical choices, and discuss what you would do next.
 
 Do not commit API keys, session data, or other secrets to the repository. Use environment variables and include an example environment file if credentials are needed.
-
-We will have a **20-minute conversation on Saturday**. Please be ready to demonstrate what you built, explain your technical choices, and discuss what you would do next.
 
 ## Evaluation criteria
 

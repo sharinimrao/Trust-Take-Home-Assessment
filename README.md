@@ -4,7 +4,7 @@ This repository contains a prompt-routing backend. Given a prompt, it scores the
 
 The repository includes the trained classifier artifacts, routing policy, FastAPI service, command-line interface, and tests. It does not generate an answer or call a model provider. Its job ends after it returns a model ID.
 
-This repository packages the core S2 Sweep implementation at its savings operating point. It is not a TrustRouter-plus-Burr integration and has no Burr or TrustRouter framework dependency at runtime.
+This repository packages the core S2 Sweep implementation at its savings setting, not a TrustRouter-plus-Burr integration. Everything needed to run it is included here, with no Burr or TrustRouter framework dependency at runtime.
 
 Each request uses the S2 quality-cost winner 70% of the time and selects uniformly from the eligible models 30% of the time. The response exposes `policy.selection_mode` as `scored` or `random`, along with `random_selection_probability: 0.3`.
 
