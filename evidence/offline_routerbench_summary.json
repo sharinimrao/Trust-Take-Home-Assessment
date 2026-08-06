@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "description": "Compact provenance snapshot for the offline finalist comparison cited in README.md",
+  "source": {
+    "repository": "TrustRouter",
+    "path": "results/raw/mini_benchmark.json",
+    "source_file_sha256": "b375eeef167cf84fa5dbcdec4b0338d417236acae0516d62ed4fb0ba35dba0bb",
+    "source_bundle_sha256": "01e633642ef0834adbcf49c7577129ce48decef52474d62b1fdc9a4a41768341"
+  },
+  "dataset": {
+    "name": "routerbench-0shot",
+    "repo_id": "withmartian/routerbench",
+    "revision": "784021482c3f320c6619ed4b3bb3b41a21424fcb",
+    "file_sha256": "ba4f77f19517610a707c374e99322d7750c30fc4ae7ff5527888595a1e65d36d",
+    "held_out_rows": 282
+  },
+  "metric_definitions": {
+    "quality_retained_percent": "Mean quality divided by the always-highest-training-mean-cost model's mean quality",
+    "cost_savings_percent": "Savings in dataset-native replay cost relative to the benchmark reference",
+    "routing_latency_ms": "Router CPU time measured during the recorded offline replay",
+    "model_calls_per_request": "Selected generation-model attempts per held-out replay row"
+  },
+  "finalists": {
+    "s2_improved": {
+      "included_in_this_repository": true,
+      "lambda_penalty": 3.0,
+      "mean_quality": 0.7273049645390071,
+      "quality_retained_percent": 96.9281663516068,
+      "cost_savings_percent": 18.66325530287524,
+      "total_cost_usd": 0.7550246,
+      "routing_latency_p50_ms": 2.2519374906551093,
+      "routing_latency_p95_ms": 2.478585360222496,
+      "model_calls_per_request": 1.0
+    },
+    "hybrid_no_a3": {
+      "included_in_this_repository": false,
+      "lambda_penalty": 30.0,
+      "mean_quality": 0.7439716312056738,
+      "quality_retained_percent": 99.14933837429112,
+      "cost_savings_percent": 8.953537225160781,
+      "total_cost_usd": 0.845157,
+      "routing_latency_p50_ms": 2.7419999823905528,
+      "routing_latency_p95_ms": 3.035266330698505,
+      "model_calls_per_request": 1.0
+    }
+  },
+  "evidence_limit": "This snapshot makes the reported comparison source-auditable. It is not a self-contained benchmark reproduction because the large RouterBench dataset, replay rows, and TrustRouter benchmark harness are deliberately outside this model-only repository."
+}

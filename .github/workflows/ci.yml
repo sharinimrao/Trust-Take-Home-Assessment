@@ -32,3 +32,25 @@ jobs:
 
       - name: Build distributions
         run: uv build
+
+      - name: Build container
+        run: docker build --tag take-home-router:ci .
+
+      - name: Smoke-test non-root container
+        run: |
+          set -euo pipefail
+          test "$(docker run --rm --entrypoint id take-home-router:ci -u)" = "10001"
+          docker run --rm --detach --name take-home-router-ci --publish 8000:8000 take-home-router:ci
+          trap 'docker stop take-home-router-ci' EXIT
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:8000/healthz; then
+              break
+            fi
+            test "$attempt" -lt 40
+            sleep 0.5
+          done
+          curl --fail --silent \
+            --header 'content-type: application/json' \
+            --data '{"prompt":"CI container smoke test"}' \
+            http://127.0.0.1:8000/v1/route \
+            | python -c 'import json, sys; assert json.load(sys.stdin)["selected_model"]'

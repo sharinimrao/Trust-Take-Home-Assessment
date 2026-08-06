@@ -10,12 +10,12 @@ TrustRouter's final offline study produced two practical finalists. This reposit
 |---|---:|---:|
 | Quality retained | 96.9% | 99.1% |
 | Cost savings | 18.7% | 9.0% |
-| Router CPU p50 / p95 | 2.28 / 2.53 ms | 2.82 / 3.30 ms |
+| Router CPU p50 / p95 | 2.25 / 2.48 ms | 2.74 / 3.04 ms |
 | Generation calls per request | 1 | 1 |
 
 The excluded hybrid averages S2's final prediction with a separate A2 router prediction. This implementation does **not** contain that ensemble. S2 does use a leakage-safe pairwise score as one input feature because that feature is part of the measured S2 artifact itself.
 
-These numbers come from an offline replay over 282 held-out RouterBench rows. They are useful comparative evidence, not a live production claim.
+These numbers come from an offline replay over 282 held-out RouterBench rows. The exact values, dataset revision, source paths, and source digests are recorded in [`evidence/offline_routerbench_summary.json`](evidence/offline_routerbench_summary.json). That compact record makes the claims source-auditable, but this model-only repository intentionally excludes the large dataset and TrustRouter benchmark harness required to reproduce the replay. These results are comparative evidence, not a live production claim.
 
 ## Architecture
 
@@ -209,6 +209,7 @@ src/take_home_router/
 tests/            # unit, artifact, service, and HTTP tests
 config/router.json
 artifacts/
+evidence/offline_routerbench_summary.json
 examples/request.json
 ```
 
@@ -236,6 +237,8 @@ This runs:
 - full in-process service tests,
 - HTTP lifecycle and validation tests.
 
+GitHub Actions runs the same checks, builds both Python distributions, builds the Docker image, verifies its non-root UID, and smoke-tests its live health and routing endpoints.
+
 Build and run the non-root container:
 
 ```bash
@@ -252,6 +255,7 @@ This is a complete, executable model-serving take-home, but the bundled artifact
 - Quality and calibration can drift as prompts, providers, and models change. Production needs outcome collection, calibration monitoring, and scheduled retraining.
 - Mean benchmark cost is a policy anchor, not live pricing. Current token prices and latency should be injected and retuned.
 - Capability constraints for tools, images, PDFs, structured output, and context limits should filter candidates before classification.
+- The HTTP surface intentionally has no authentication, authorization, rate limiting, request-body cap, or TLS termination. A production deployment should place it behind an authenticated gateway with those controls.
 - The reported latency excludes network, queueing, cold-start, and generation time.
 
 Those constraints are stated explicitly so the repository demonstrates both a working system and the judgment required to operate it responsibly.

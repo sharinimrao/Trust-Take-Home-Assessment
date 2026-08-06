@@ -10,8 +10,8 @@
     "held_out_rows": 282,
     "quality_retained_percent": 96.9,
     "cost_savings_percent": 18.7,
-    "routing_cpu_p50_ms": 2.28,
-    "routing_cpu_p95_ms": 2.53,
+    "routing_cpu_p50_ms": 2.2519374906551093,
+    "routing_cpu_p95_ms": 2.478585360222496,
     "evidence_level": "offline replay; not a live production claim"
   },
   "mean_cost_usd": {

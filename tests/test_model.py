@@ -56,11 +56,11 @@ def test_golden_predictions_match_the_original_trustrouter_s2(classifier: S2Clas
 
     cheap = predictions["mistralai/mistral-7b-chat"]
     strong = predictions["gpt-4-1106-preview"]
-    assert math.isclose(cheap.quality, 0.1677937761344669, rel_tol=1e-15)
-    assert math.isclose(cheap.raw_quality, 0.18723497124748825, rel_tol=1e-15)
+    assert math.isclose(cheap.quality, 0.1677937761344669, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(cheap.raw_quality, 0.18723497124748825, rel_tol=0.0, abs_tol=1e-12)
     assert cheap.expected_output_tokens == 29
-    assert math.isclose(strong.quality, 0.27263987322772393, rel_tol=1e-15)
-    assert math.isclose(strong.raw_quality, 0.32439400339447483, rel_tol=1e-15)
+    assert math.isclose(strong.quality, 0.27263987322772393, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(strong.raw_quality, 0.32439400339447483, rel_tol=0.0, abs_tol=1e-12)
     assert strong.expected_output_tokens == 81
 
 
