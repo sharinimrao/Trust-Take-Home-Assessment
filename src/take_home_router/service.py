@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import random
 import threading
 import time
 import uuid
@@ -10,7 +11,7 @@ from pathlib import Path
 
 from take_home_router.config import RouterConfig
 from take_home_router.model import ModelPrediction, S2Classifier
-from take_home_router.policy import ScoredCandidate, select_model
+from take_home_router.policy import RandomSource, ScoredCandidate, select_model
 from take_home_router.schemas import (
     CandidateResult,
     FeatureContribution,
@@ -32,11 +33,18 @@ class RoutingRequestError(ValueError):
 class ClassifierService:
     """Thread-safe, select-only prompt router with immutable loaded artifacts."""
 
-    def __init__(self, classifier: S2Classifier, config: RouterConfig) -> None:
+    def __init__(
+        self,
+        classifier: S2Classifier,
+        config: RouterConfig,
+        random_source: RandomSource | None = None,
+    ) -> None:
         config.validate_candidates(classifier.candidates)
         self.classifier = classifier
         self.config = config
+        self._random_source = random_source if random_source is not None else random.SystemRandom()
         self._prediction_lock = threading.RLock()
+        self._selection_lock = threading.Lock()
 
     @classmethod
     def from_paths(
@@ -45,10 +53,12 @@ class ClassifierService:
         s2_artifact_dir: Path,
         auxiliary_artifact: Path,
         config_path: Path,
+        random_source: RandomSource | None = None,
     ) -> ClassifierService:
         return cls(
             S2Classifier(s2_artifact_dir, auxiliary_artifact),
             RouterConfig.load(config_path),
+            random_source,
         )
 
     @classmethod
@@ -82,12 +92,15 @@ class ClassifierService:
         )
         with self._prediction_lock:
             predictions = self.classifier.predict_prompt(request.prompt, candidates)
-        selection = select_model(
-            predictions,
-            self.config.mean_cost_usd,
-            lambda_penalty=self.config.lambda_penalty,
-            cost_saving_preference=preference,
-        )
+        with self._selection_lock:
+            selection = select_model(
+                predictions,
+                self.config.mean_cost_usd,
+                lambda_penalty=self.config.lambda_penalty,
+                cost_saving_preference=preference,
+                random_selection_probability=self.config.random_selection_probability,
+                random_source=self._random_source,
+            )
         results = [
             self._candidate_result(
                 score.model,
@@ -105,6 +118,8 @@ class ClassifierService:
             selected_model=selection.selected_model,
             routing_latency_ms=latency_ms,
             policy=PolicyResult(
+                selection_mode=selection.selection_mode,
+                random_selection_probability=selection.random_selection_probability,
                 cost_saving_preference=selection.cost_saving_preference,
                 quality_weight=selection.quality_weight,
                 cost_weight=selection.cost_weight,
@@ -119,6 +134,7 @@ class ClassifierService:
             classifier_version=self.config.classifier_version,
             candidates=list(self.classifier.candidates),
             default_cost_saving_preference=self.config.default_cost_saving_preference,
+            random_selection_probability=self.config.random_selection_probability,
         )
 
     def health(self) -> HealthResponse:

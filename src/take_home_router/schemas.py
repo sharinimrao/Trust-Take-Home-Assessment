@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -74,6 +76,8 @@ class CandidateResult(BaseModel):
 
 
 class PolicyResult(BaseModel):
+    selection_mode: Literal["scored", "random"]
+    random_selection_probability: float = Field(ge=0.0, le=1.0)
     cost_saving_preference: float = Field(ge=0.0, le=100.0)
     quality_weight: float = Field(ge=0.0, le=1.0)
     cost_weight: float = Field(ge=0.0, le=1.0)
@@ -95,6 +99,7 @@ class ModelCatalogResponse(BaseModel):
     classifier_version: str
     candidates: list[str]
     default_cost_saving_preference: float
+    random_selection_probability: float = Field(ge=0.0, le=1.0)
     select_only: bool = True
 
 

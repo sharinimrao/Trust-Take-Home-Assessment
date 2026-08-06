@@ -23,6 +23,7 @@ class RouterConfig:
     description: str
     lambda_penalty: float
     default_cost_saving_preference: float
+    random_selection_probability: float
     mean_cost_usd: Mapping[str, float]
     benchmark: Mapping[str, object]
 
@@ -34,8 +35,8 @@ class RouterConfig:
                 raise ValueError("root must be an object")
             payload = cast(dict[str, object], raw)
             schema_version = _integer(payload, "schema_version")
-            if schema_version != 1:
-                raise ValueError("schema_version must be 1")
+            if schema_version != 2:
+                raise ValueError("schema_version must be 2")
             raw_costs = payload.get("mean_cost_usd")
             if not isinstance(raw_costs, dict) or not raw_costs:
                 raise ValueError("mean_cost_usd must be a non-empty object")
@@ -51,6 +52,12 @@ class RouterConfig:
             )
             if preference > 100.0:
                 raise ValueError("default_cost_saving_preference must be at most 100")
+            random_selection_probability = _nonnegative_float(
+                payload.get("random_selection_probability"),
+                "random_selection_probability",
+            )
+            if random_selection_probability > 1.0:
+                raise ValueError("random_selection_probability must be at most 1")
             benchmark = payload.get("benchmark", {})
             if not isinstance(benchmark, dict):
                 raise ValueError("benchmark must be an object")
@@ -61,6 +68,7 @@ class RouterConfig:
                 description=_text(payload, "description"),
                 lambda_penalty=_nonnegative_float(payload.get("lambda_penalty"), "lambda_penalty"),
                 default_cost_saving_preference=preference,
+                random_selection_probability=random_selection_probability,
                 mean_cost_usd=MappingProxyType(costs),
                 benchmark=MappingProxyType(cast(dict[str, object], benchmark)),
             )

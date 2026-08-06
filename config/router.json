@@ -1,10 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "classifier_name": "s2-savings-router",
-  "classifier_version": "routerbench-mini-seed-23",
-  "description": "Calibrated per-candidate LightGBM S2 router with an auxiliary pairwise score",
+  "classifier_version": "routerbench-mini-seed-23-random-30",
+  "description": "Calibrated per-candidate LightGBM S2 router with 30% uniform random exploration",
   "lambda_penalty": 3.0,
   "default_cost_saving_preference": 50.0,
+  "random_selection_probability": 0.3,
   "benchmark": {
     "dataset": "RouterBench 0-shot offline replay",
     "held_out_rows": 282,
@@ -12,7 +13,7 @@
     "cost_savings_percent": 18.7,
     "routing_cpu_p50_ms": 2.2519374906551093,
     "routing_cpu_p95_ms": 2.478585360222496,
-    "evidence_level": "offline replay; not a live production claim"
+    "evidence_level": "classifier-only offline replay before random exploration; not a live production claim"
   },
   "mean_cost_usd": {
     "WizardLM/WizardLM-13B-V1.2": 0.00004489417808219181,

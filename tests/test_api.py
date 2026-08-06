@@ -7,6 +7,17 @@ from take_home_router.api import create_app
 from take_home_router.service import ClassifierService
 
 
+class AlwaysExploreSecondCandidate:
+    def random(self) -> float:
+        return 0.0
+
+    def randrange(self, start: int, stop: int | None = None, step: int = 1) -> int:
+        assert stop is None
+        assert step == 1
+        assert start >= 2
+        return 1
+
+
 def test_http_health_catalog_and_route(service: ClassifierService) -> None:
     with TestClient(create_app(service)) as client:
         health = client.get("/healthz")
@@ -41,6 +52,38 @@ def test_http_health_catalog_and_route(service: ClassifierService) -> None:
         "mistralai/mistral-7b-chat",
         "gpt-4-1106-preview",
     }
+    assert body["policy"]["selection_mode"] == "scored"
+    assert body["policy"]["random_selection_probability"] == 0.3
+    assert catalog.json()["random_selection_probability"] == 0.3
+
+
+def test_http_route_exposes_random_exploration(service: ClassifierService) -> None:
+    exploring_service = ClassifierService(
+        service.classifier,
+        service.config,
+        AlwaysExploreSecondCandidate(),
+    )
+    with TestClient(create_app(exploring_service)) as client:
+        response = client.post(
+            "/v1/route",
+            json={
+                "prompt": "Say hello.",
+                "metadata": {
+                    "candidate_models": [
+                        "mistralai/mistral-7b-chat",
+                        "gpt-4-1106-preview",
+                    ],
+                    "cost_saving_preference": 100,
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["policy"]["selection_mode"] == "random"
+    assert body["policy"]["random_selection_probability"] == 0.3
+    assert body["selected_model"] == "gpt-4-1106-preview"
+    assert body["candidates"][0]["model"] == body["selected_model"]
 
 
 def test_http_contract_rejects_invalid_prompts_metadata_and_candidates(
