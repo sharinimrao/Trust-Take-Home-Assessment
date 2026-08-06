@@ -64,8 +64,9 @@ brew install libomp
 
 The provided Debian container installs `libgomp1` automatically.
 
+From the repository root:
+
 ```bash
-cd "/Users/medha/Desktop/yc/Take Home"
 uv sync --dev
 uv run take-home-router route \
   --prompt "Write a Python LRU cache and explain its complexity" \
