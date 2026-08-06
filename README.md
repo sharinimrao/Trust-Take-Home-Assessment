@@ -1,87 +1,54 @@
 # Take Home Model Router
 
-A self-contained backend that classifies a prompt and returns the generation model that should handle it. The repository packages the actual trained classifier weights, a strict request contract, an auditable selection policy, a FastAPI service, and a local CLI. It does not call any generation provider.
+This repository contains a prompt-routing backend. Given a prompt, it scores the configured language models and returns the model that should handle the request.
 
-## Why this model
+The repository includes the trained classifier artifacts, routing policy, FastAPI service, command-line interface, and tests. It does not generate an answer or call a model provider. Its job ends after it returns a model ID.
 
-TrustRouter's final offline study produced two practical finalists. This repository deliberately implements the second option by retained quality, the **S2 savings router**, because the assignment excludes the best quality classifier.
+This repository packages the core S2 Sweep implementation at its savings operating point. It is not a TrustRouter-plus-Burr integration and has no Burr or TrustRouter framework dependency at runtime.
 
-**Variant identity:** this is the core S2 Sweep implementation (`s2_gbdt.py`) at its savings operating point, not a TrustRouter-plus-Burr integration. Burr and TrustRouter's orchestration framework are not dependencies or runtime components.
+Each request uses the S2 quality-cost winner 70% of the time and selects uniformly from the eligible models 30% of the time. The response exposes `policy.selection_mode` as `scored` or `random`, along with `random_selection_probability: 0.3`.
 
-| Offline RouterBench result | S2 in this repository | Excluded S2+A2 hybrid |
-|---|---:|---:|
-| Quality retained | 96.9% | 99.1% |
-| Cost savings | 18.7% | 9.0% |
-| Router CPU p50 / p95 | 2.25 / 2.48 ms | 2.74 / 3.04 ms |
-| Generation calls per request | 1 | 1 |
+The offline benchmark figures in [`evidence/offline_routerbench_summary.json`](evidence/offline_routerbench_summary.json) describe the classifier-only policy before the exploration layer. They do not measure the final stochastic serving policy.
 
-The excluded hybrid averages S2's final prediction with a separate A2 router prediction. This implementation does **not** contain that ensemble. S2 does use a leakage-safe pairwise score as one input feature because that feature is part of the measured S2 artifact itself.
+The take-home assignment is to build the user-facing experience around this router and explore how it can work with Claude and ChatGPT. See [Instructions.md](Instructions.md) for the assignment details.
 
-These numbers come from an offline replay over 282 held-out RouterBench rows. The exact values, dataset revision, source paths, and source digests are recorded in [`evidence/offline_routerbench_summary.json`](evidence/offline_routerbench_summary.json). That compact record makes the claims source-auditable, but this model-only repository intentionally excludes the large dataset and TrustRouter benchmark harness required to reproduce the replay. These results are comparative evidence, not a live production claim.
+## How it works
 
-## Architecture
-
-```mermaid
-flowchart LR
-    A[Prompt + routing metadata] --> B[Pydantic validation]
-    B --> C[Prompt feature extractor]
-    C --> D[48-D signed-hash embedding]
-    D --> E[Auxiliary scalar feature]
-    E --> F[Per-candidate LightGBM heads]
-    F --> G[Platt calibration + token estimate]
-    G --> H[Quality-cost policy]
-    H --> I[Selected model ID + ranked audit scores]
+```text
+Prompt
+  -> request validation
+  -> prompt feature extraction
+  -> per-model quality and token predictions
+  -> quality/cost routing policy
+  -> selected model ID and ranked candidate scores
 ```
 
-The serving path has four intentionally small layers:
+The main endpoint is `POST /v1/route`. It accepts a prompt and optional routing settings, then returns a `selected_model` field. That field is the handoff point for a front end or provider integration.
 
-1. **Features**: prompt length, approximate tokens, code-fence status, and the exact 48-dimensional signed-hash representation used during training.
-2. **Classifier**: one quality booster and one output-token regressor for each candidate model. The quality output is Platt calibrated.
-3. **Policy**: a transparent quality-minus-cost objective with deterministic tie-breaking.
-4. **Delivery**: a typed in-process service exposed through FastAPI and a CLI.
+The API also exposes:
 
-All artifacts load and validate at startup. Unknown candidates, schema drift, missing files, invalid calibration state, and non-finite predictions fail closed.
+- `GET /healthz` for service health
+- `GET /v1/models` for the supported model IDs
+- `/docs` for interactive FastAPI documentation
 
-## Implementation plan
-
-The repository was built against this delivery plan:
-
-1. **Select the model**: compare TrustRouter's finalists and choose S2, the strongest measured classifier below the excluded best-quality hybrid.
-2. **Isolate inference**: reproduce only S2's feature contract, auxiliary scalar, trained LightGBM heads, calibration, and policy. Do not carry over TrustRouter's framework or provider integrations.
-3. **Define the boundary**: accept a prompt plus routing metadata and return one selected model with ranked, auditable candidate scores.
-4. **Package the system**: expose the same typed service through a CLI, HTTP API, distributable wheel, and non-root container.
-5. **Close the feedback loop**: test deterministic features, model artifacts, golden prediction parity, policy behavior, API validation, strict typing, linting, and package builds.
-
-Each phase is complete in this version. The validation commands and remaining production limitations are documented below.
-
-## Quick start
+## Run it locally
 
 The project requires Python 3.11 and [`uv`](https://docs.astral.sh/uv/).
 
-LightGBM requires an OpenMP runtime. Install it once when developing on macOS:
+LightGBM also needs an OpenMP runtime. On macOS, install it with:
 
 ```bash
 brew install libomp
 ```
 
-The provided Debian container installs `libgomp1` automatically.
-
-From the repository root:
+Install the project and start the API:
 
 ```bash
 uv sync --dev
-uv run take-home-router route \
-  --prompt "Write a Python LRU cache and explain its complexity" \
-  --explain
-```
-
-Start the API:
-
-```bash
 uv run take-home-router serve --host 127.0.0.1 --port 8000
 ```
 
-Then route a prompt:
+In another terminal, send a prompt:
 
 ```bash
 curl -s http://127.0.0.1:8000/v1/route \
@@ -89,20 +56,20 @@ curl -s http://127.0.0.1:8000/v1/route \
   --data @examples/request.json
 ```
 
-Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
+You can also classify a prompt without starting the server:
 
-## API contract
+```bash
+uv run take-home-router route \
+  --prompt "Write a Python LRU cache and explain its complexity" \
+  --explain
+```
 
-### `POST /v1/route`
+## API request
 
 ```json
 {
   "prompt": "Write a Python function that merges two sorted lists.",
   "metadata": {
-    "candidate_models": [
-      "mistralai/mistral-7b-chat",
-      "gpt-4-1106-preview"
-    ],
     "cost_saving_preference": 50,
     "include_explanations": true,
     "request_id": "example-123"
@@ -110,154 +77,25 @@ Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
 }
 ```
 
-- `prompt` is required and must contain non-whitespace text.
-- `candidate_models` optionally restricts selection to a known subset.
-- `cost_saving_preference` ranges from `0` for quality-only selection to `100` for cost-only selection. `50` reproduces the benchmark-tuned ordering.
-- `include_explanations` returns the five largest LightGBM feature contributions for each candidate.
-- `request_id` is echoed when supplied. The service generates one otherwise.
-
-The response includes the selected model and the evidence used to choose it:
-
-```json
-{
-  "request_id": "example-123",
-  "classifier": "s2-savings-router",
-  "classifier_version": "routerbench-mini-seed-23",
-  "selected_model": "mistralai/mistral-7b-chat",
-  "routing_latency_ms": 2.4,
-  "policy": {
-    "cost_saving_preference": 50.0,
-    "quality_weight": 0.5,
-    "cost_weight": 0.5,
-    "lambda_penalty": 3.0
-  },
-  "candidates": [
-    {
-      "model": "mistralai/mistral-7b-chat",
-      "predicted_quality": 0.78,
-      "expected_output_tokens": 184,
-      "uncertainty": 0.41,
-      "benchmark_mean_cost_usd": 0.0000294,
-      "quality_component": 0.39,
-      "cost_penalty": 0.0000441,
-      "utility": 0.3899559,
-      "top_contributions": []
-    }
-  ]
-}
-```
-
-Values above are illustrative. Run the request to obtain predictions from the bundled artifacts.
-
-Additional endpoints:
-
-- `GET /healthz`: process and model readiness.
-- `GET /v1/models`: classifier version and supported candidate IDs.
-
-## Model details
-
-For each candidate model, S2 computes:
-
-- a calibrated probability that the candidate will answer successfully,
-- an expected output-token count,
-- uncertainty derived from the calibrated Bernoulli probability,
-- additive LightGBM feature contributions for inspection.
-
-At the default preference, selection is equivalent to:
-
-```text
-utility(candidate) = predicted_quality(candidate)
-                     - 3.0 * benchmark_mean_cost(candidate)
-```
-
-The public preference control scales the quality and cost terms without retraining:
-
-```text
-p = cost_saving_preference / 100
-utility = (1 - p) * predicted_quality - p * 3.0 * benchmark_mean_cost
-```
-
-At `p = 0.5`, multiplying both terms by `0.5` does not change the benchmark ordering. Equal utilities prefer the cheaper candidate, then the lexicographically smaller model ID.
-
-### Artifact provenance
-
-The checked-in artifacts were trained by TrustRouter's leakage-aware RouterBench mini benchmark with seed 23:
-
-```text
-artifacts/
-├── auxiliary/a2_matrixfact.json  # scalar feature model used by S2
-└── s2/
-    ├── metadata.json             # frozen feature and candidate schema
-    └── <candidate>/
-        ├── quality.txt            # LightGBM success classifier
-        ├── tokens.txt             # LightGBM output-length regressor
-        └── calibration.json       # held-out Platt calibration
-```
-
-The feature implementation is intentionally reproduced locally rather than imported from TrustRouter. The application contains no TrustRouter registry, proxy, gateway, benchmark harness, dashboard, session state, or generation client.
+`metadata` is optional. It can also contain a `candidate_models` list to limit the models considered by the router. The response includes the selected model, routing policy details, and scores for the eligible candidates.
 
 ## Repository layout
 
 ```text
-src/take_home_router/
-├── features.py   # exact prompt-to-feature contract
-├── model.py      # artifact validation and calibrated inference
-├── policy.py     # auditable quality-cost selection
-├── service.py    # in-process orchestration
-├── schemas.py    # public request and response models
-├── api.py        # FastAPI endpoints and lifecycle
-└── cli.py        # local route, models, and serve commands
-
-tests/            # unit, artifact, service, and HTTP tests
-config/router.json
-artifacts/
-evidence/offline_routerbench_summary.json
-examples/request.json
+src/take_home_router/   classifier, routing policy, API, and CLI
+artifacts/              trained model and calibration files
+config/router.json      model catalog and routing configuration
+evidence/               offline benchmark summary
+examples/request.json   sample API request
+tests/                  unit and integration tests
 ```
 
-## Engineering choices
+## Checks
 
-- **Actual weights are included.** A reviewer can run meaningful inference without credentials, provider calls, or a training download.
-- **Startup is strict.** The service refuses to start when artifact and policy candidate sets differ.
-- **The hot path is deterministic.** Feature hashing, candidate ordering, and tie-breaking are stable.
-- **Predictions are inspectable.** Responses can include ranked alternatives, decomposed utility, uncertainty, and top feature contributions.
-- **The service is select-only.** It cannot spend money or leak a prompt to a model provider.
-- **Model access is synchronized.** A process-level lock avoids relying on undocumented concurrent access behavior in shared LightGBM booster objects. Horizontal scaling remains process based.
-
-## Validation
+Run the full test, lint, and type-check suite with:
 
 ```bash
 make check
 ```
 
-This runs:
-
-- Ruff lint and format checks,
-- strict Pyright type checking,
-- unit tests for feature and policy invariants,
-- real artifact loading and inference tests,
-- full in-process service tests,
-- HTTP lifecycle and validation tests.
-
-GitHub Actions runs the same checks, builds both Python distributions, builds the Docker image, verifies its non-root UID, and smoke-tests its live health and routing endpoints.
-
-Build and run the non-root container:
-
-```bash
-docker build -t take-home-router .
-docker run --rm -p 8000:8000 take-home-router
-```
-
-## Limitations and production follow-up
-
-This is a complete, executable model-serving take-home, but the bundled artifacts are research artifacts rather than a current production fleet.
-
-- Candidate IDs and cost observations reflect historical RouterBench models.
-- The deterministic signed-hash representation is reproducible and offline, but weaker than a production semantic embedding. A production version should retrain with a frozen BGE/PCA pipeline.
-- Quality and calibration can drift as prompts, providers, and models change. Production needs outcome collection, calibration monitoring, and scheduled retraining.
-- Mean benchmark cost is a policy anchor, not live pricing. Current token prices and latency should be injected and retuned.
-- Capability constraints for tools, images, PDFs, structured output, and context limits should filter candidates before classification.
-- The HTTP surface intentionally has no authentication, authorization, rate limiting, request-body cap, or TLS termination. A production deployment should place it behind an authenticated gateway with those controls.
-- The reported latency excludes network, queueing, cold-start, and generation time.
-
-Those constraints are stated explicitly so the repository demonstrates both a working system and the judgment required to operate it responsibly.
+The backend is intentionally provider-independent. No API credentials are required to run the classifier itself.
