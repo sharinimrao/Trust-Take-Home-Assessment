@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "classifier_name": "s2-savings-router",
+  "classifier_version": "routerbench-mini-seed-23",
+  "description": "Calibrated per-candidate LightGBM S2 router with an auxiliary pairwise score",
+  "lambda_penalty": 3.0,
+  "default_cost_saving_preference": 50.0,
+  "benchmark": {
+    "dataset": "RouterBench 0-shot offline replay",
+    "held_out_rows": 282,
+    "quality_retained_percent": 96.9,
+    "cost_savings_percent": 18.7,
+    "routing_cpu_p50_ms": 2.28,
+    "routing_cpu_p95_ms": 2.53,
+    "evidence_level": "offline replay; not a live production claim"
+  },
+  "mean_cost_usd": {
+    "WizardLM/WizardLM-13B-V1.2": 0.00004489417808219181,
+    "claude-instant-v1": 0.0001241353003161224,
+    "claude-v1": 0.0012941707060063333,
+    "claude-v2": 0.001380320337197062,
+    "gpt-3.5-turbo-1106": 0.00014642808219178136,
+    "gpt-4-1106-preview": 0.00198790042149632,
+    "meta/code-llama-instruct-34b-chat": 0.00011199421707060051,
+    "meta/llama-2-70b-chat": 0.00013475223919915744,
+    "mistralai/mistral-7b-chat": 0.000029399157007376214,
+    "mistralai/mixtral-8x7b-chat": 0.00008749726027397257,
+    "zero-one-ai/Yi-34B-Chat": 0.00011665036880927331
+  }
+}
