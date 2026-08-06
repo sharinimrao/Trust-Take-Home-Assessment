@@ -6,6 +6,8 @@ A self-contained backend that classifies a prompt and returns the generation mod
 
 TrustRouter's final offline study produced two practical finalists. This repository deliberately implements the second option by retained quality, the **S2 savings router**, because the assignment excludes the best quality classifier.
 
+**Variant identity:** this is the core S2 Sweep implementation (`s2_gbdt.py`) at its savings operating point, not a TrustRouter-plus-Burr integration. Burr and TrustRouter's orchestration framework are not dependencies or runtime components.
+
 | Offline RouterBench result | S2 in this repository | Excluded S2+A2 hybrid |
 |---|---:|---:|
 | Quality retained | 96.9% | 99.1% |
