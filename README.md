@@ -1,104 +1,165 @@
-# Crumble Tracker — Butter & Crumble
+# Take Home Model Router
 
-Two HTML files. No frameworks, no build step, no dependencies. Just open them in a browser.
+This repository contains a prompt-routing backend. Given a prompt, it scores the configured language models and returns the model that should handle the request.
 
-## Files
+The repository includes the trained classifier artifacts, routing policy, FastAPI service, command-line interface, and tests. It does not generate an answer or call a model provider. Its job ends after it returns a model ID.
 
-- `index.html` — Customer-facing tracker (public URL)
-- `staff.html` — Staff admin dashboard (password-protect this!)
+This repository packages the core S2 Sweep implementation at its savings setting, not a TrustRouter-plus-Burr integration. Everything needed to run it is included here, with no Burr or TrustRouter framework dependency at runtime.
+
+Each request uses the S2 quality-cost winner 70% of the time and selects uniformly from the eligible models 30% of the time. The response exposes `policy.selection_mode` as `scored` or `random`, along with `random_selection_probability: 0.3`.
+
+The offline benchmark figures in [`evidence/offline_routerbench_summary.json`](evidence/offline_routerbench_summary.json) describe the classifier-only policy before the exploration layer. They do not measure the final stochastic serving policy.
+
+The take-home assignment is to build the user-facing experience around this router and explore how it can work with Claude and ChatGPT. See [Instructions.md](Instructions.md) for the assignment details.
+
+## How it works
+
+​```text
+Prompt
+  -> request validation
+  -> prompt feature extraction
+  -> per-model quality and token predictions
+  -> quality/cost routing policy
+  -> selected model ID and ranked candidate scores
+​```
+
+The main endpoint is `POST /v1/route`. It accepts a prompt and optional routing settings, then returns a `selected_model` field. That field is the handoff point for a front end or provider integration.
+
+The API also exposes:
+
+- `GET /healthz` for service health
+- `GET /v1/models` for the supported model IDs
+- `/docs` for interactive FastAPI documentation
+
+## Run it locally
+
+The project requires Python 3.11 and [`uv`](https://docs.astral.sh/uv/).
+
+LightGBM also needs an OpenMP runtime. On macOS, install it with:
+
+​```bash
+brew install libomp
+​```
+
+Install the project and start the API:
+
+​```bash
+uv sync --dev
+uv run take-home-router serve --host 127.0.0.1 --port 8000
+​```
+
+In another terminal, send a prompt:
+
+​```bash
+curl -s http://127.0.0.1:8000/v1/route \
+  -H 'content-type: application/json' \
+  --data @examples/request.json
+​```
+
+You can also classify a prompt without starting the server:
+
+​```bash
+uv run take-home-router route \
+  --prompt "Write a Python LRU cache and explain its complexity" \
+  --explain
+​```
+
+## API request
+
+​```json
+{
+  "prompt": "Write a Python function that merges two sorted lists.",
+  "metadata": {
+    "cost_saving_preference": 50,
+    "include_explanations": true,
+    "request_id": "example-123"
+  }
+}
+​```
+
+`metadata` is optional. It can also contain a `candidate_models` list to limit the models considered by the router. The response includes the selected model, routing policy details, and scores for the eligible candidates.
+
+## Repository layout
+
+​```text
+src/take_home_router/   classifier, routing policy, API, and CLI
+artifacts/              trained model and calibration files
+config/router.json      model catalog and routing configuration
+evidence/               offline benchmark summary
+examples/request.json   sample API request
+tests/                  unit and integration tests
+​```
+
+## Checks
+
+Run the full test, lint, and type-check suite with:
+
+​```bash
+make check
+​```
+
+The backend is intentionally provider-independent. No API credentials are required to run the classifier itself.
 
 ---
 
-## How to get this live in 30 minutes (free)
+## Take-home submission notes
 
-### Option A: Netlify Drop (easiest, no account needed)
-1. Go to https://app.netlify.com/drop
-2. Drag and drop the entire `crumble-tracker` folder onto the page
-3. You get a live URL instantly — e.g. `https://random-name.netlify.app`
-4. Share `index.html` URL with customers, keep `staff.html` for internal use
+This section documents what was built on top of the router for the assignment (see [Instructions.md](Instructions.md)).
 
-### Option B: GitHub Pages (free, permanent)
-1. Create a free account at https://github.com
-2. New repository → name it `crumble-tracker` → public
-3. Upload both HTML files
-4. Settings → Pages → Source: main branch → Save
-5. Live at `https://yourusername.github.io/crumble-tracker`
+### What's here
 
-### Option C: Vercel (free, fast)
-1. https://vercel.com → sign up with GitHub
-2. Import your crumble-tracker repo
-3. Deploy → done. Custom domain support built in.
+- `frontend/` — React + Vite + Tailwind chat UI (Task 1 & 2).
+- `userscript/trust-router.user.js` — Tampermonkey/Violentmonkey userscript prototype for claude.ai and chatgpt.com (Task 3).
+- A CORS change to `src/take_home_router/api.py` (`allow_origins=["*"]`) so the frontend can call the API from a different origin during local dev. **This is wide open on purpose for the take-home and should be scoped to the real frontend origin before any real deployment.**
 
----
+### Running the full stack locally
 
-## Custom domain (optional, ~$12/year)
-Buy `butterandcrumble.app` or similar at Namecheap/Google Domains, then point it to your Netlify/Vercel URL via their DNS settings.
+​```bash
+# Terminal 1 — backend
+uv sync --dev
+uv run take-home-router serve --host 127.0.0.1 --port 8000
 
----
+# Terminal 2 — frontend
+cd frontend
+npm install
+cp .env.example .env      # VITE_ROUTER_API_URL defaults to http://127.0.0.1:8000
+npm run dev
+​```
 
-## What's currently hardcoded (you'll need to update manually until backend is built)
+Open the printed local URL (typically `http://localhost:5173`). There's a login screen first — see below.
 
-In `index.html`:
-- Line count, wait time, pastry stock levels — update the JS `pastries` array
-- Sell-out timeline items — edit the `.tl-item` HTML blocks
-- Nearby viewer count — edit the stat card value
+### Task 1 — Chat frontend
 
-In `staff.html`:
-- KPI numbers (line count, revenue, served)
-- `invData` array — the inventory starting values
+Single-page chat UI: prompt input, message thread, loading state (animated bubble) and error state (inline error bubble + a "routing trace" panel that flips to an error marker) if the backend is unreachable or returns a non-2xx response. A right-hand "routing trace" panel mirrors the backend's own README pipeline diagram (`validate → features → predict → policy → select`) and lights up as a request resolves, then shows the selected model, `selection_mode` (`scored`/`random`), latency, and the full ranked candidate list with quality scores.
 
----
+**Login gate:** added per request, but there is no auth backend anywhere in this repository or the assignment. It's a client-side name/email form that stores a session in `sessionStorage` — a UI gate, not a security boundary. This is called out in the UI copy itself and in `frontend/src/components/LoginGate.jsx` so it isn't mistaken for real auth in review.
 
-## Phase 2: Making it truly live (backend integration)
+### Task 2 — Router integration
 
-To make data update automatically, you'll need a small backend. Recommended stack:
+`frontend/src/lib/api.js` posts to `POST /v1/route` with `include_explanations: true` and surfaces `RouterApiError` distinctly from a successful-but-unhelpful response, so the UI can tell "backend unreachable" apart from "backend rejected the request" (e.g. an unknown `candidate_models` entry, which the backend returns as a 422).
 
-### POS Integration (Square or Toast)
-Both have webhooks that fire when items are sold:
-- Square: https://developer.squareup.com/docs/webhooks
-- Toast: https://doc.toasttab.com/doc/devguide/apiWebhooks.html
+The response is intentionally *not* massaged before display — `selected_model`, `policy.selection_mode`, and per-candidate `utility`/`predicted_quality` are shown as the backend returns them, since the assignment asks the routing decision to be visible, not reinterpreted.
 
-When a webhook fires, update a simple database with new stock counts.
+### Task 3 — Handoff to claude.ai / chatgpt.com
 
-### Recommended backend: Supabase (free tier)
-- https://supabase.com — free Postgres database + realtime subscriptions
-- Create a `pastries` table: id, name, stock, max_stock, updated_at
-- Create a `queue` table: position_count, updated_at
-- Frontend polls every 30s OR uses Supabase realtime for instant updates
+Two layers, from simplest to most automated:
 
-### Queue tracking
-- Staff tap a button when someone joins the line (or scans QR)
-- QR scan endpoint increments the queue count in Supabase
-- Front page reads the count and calculates wait time
+1. **In-app handoff (`frontend/src/components/HandoffModal.jsx`)**: after a prompt is routed, "Hand off to claude.ai/chatgpt.com →" copies the prompt to the clipboard and opens the destination site in a new tab. Neither site accepts a prompt via query string or postMessage from an arbitrary origin, so copy-and-open is the honest floor for a same-tab handoff.
+2. **Userscript (`userscript/trust-router.user.js`)**: install in Tampermonkey/Violentmonkey, and it watches the composer on claude.ai or chatgpt.com directly, debounces, POSTs the draft to your local router, and renders a small floating badge with the routing decision — so the recommendation shows up *while you're typing on the actual site*, with no copy/paste step. It deliberately does not auto-click either site's model picker; see "compatibility decisions" below for why, and "what's next" for what a real integration would need.
 
-### GPS verification (for digital queue)
-Use the browser Geolocation API:
-```javascript
-navigator.geolocation.getCurrentPosition(pos => {
-  const dist = haversine(pos.coords, { lat: 37.7749, lng: -122.4194 }); // bakery coords
-  if (dist < 200) enableQueueJoin();
-});
-```
+A userscript was chosen over a packaged browser extension for the prototype: no manifest, no build step, and it can be reviewed as a single readable file, which fits a 20-minute take-home conversation better than a full `manifest.json` + background worker + content script bundle. A companion local service (an extra process the userscript or frontend calls) wasn't necessary here since the FastAPI backend already serves this role directly.
 
-### Push notifications
-Use OneSignal (free tier): https://onesignal.com
-- Users subscribe when they tap "Notify me if sold out"
-- When stock hits 0 via webhook, trigger a OneSignal push to subscribers
+### Model mapping / compatibility decisions
 
----
+`config/router.json`'s catalog is RouterBench-era (`claude-v1`, `claude-v2`, `claude-instant-v1`, `gpt-4-1106-preview`, `gpt-3.5-turbo-1106`, plus open-weight models like Llama 2, Mixtral, WizardLM, Yi-34B). None of these IDs are selectable on claude.ai or chatgpt.com today. `frontend/src/lib/modelMap.js` is the documented compatibility layer:
 
-## Presenting to Butter & Crumble
+- Anthropic-family IDs → `claude.ai`, OpenAI-family IDs → `chatgpt.com`, tagged `frontier` or `fast` tier.
+- Every open-weight ID (no first-party surface on either site) is approximated onto the cheapest/fastest supported destination and flagged `isFallback: true` — surfaced in the UI as "(approx.)" rather than presented as an exact match.
+- This is a stated approximation, not a claim that (e.g.) Mixtral-8x7B and a "fast" ChatGPT tier are equivalent — it's the closest intent match available without a real multi-provider routing layer.
 
-Lead with the customer problem: *"People arrive at 5am because they're scared. This eliminates the fear."*
+### What's unfinished / what production would need
 
-Show the three-tab flow on your phone — Queue → Pastries → Simulator.
-Then show the staff dashboard and the Insights tab.
-
-Key numbers to cite:
-- 8% attrition rate (customers who leave lines empty-handed never return)
-- $56/day in lost kouign-amann revenue = $1,120/month recoverable
-- 30–60 seconds saved per transaction by pre-informed customers
-
----
-
-Built with pure HTML/CSS/JS. No frameworks needed to ship v1.
+- **Real auth** on both the frontend and a proper session-bound backend, instead of the demo login gate.
+- **Provider APIs instead of DOM automation.** The userscript reads the composer and shows a recommendation, but doesn't switch either site's model picker, because that means depending on unstable, undocumented DOM structure in someone's account UI. A production version should route through Anthropic's and OpenAI's actual APIs (with the user's own API key) rather than automating the consumer web app.
+- **A real model catalog.** The classifier would need retraining/recalibration against current model choices instead of the RouterBench-era catalog and the approximate mapping layer above.
+- **Cost tracking**, since `Instructions.md` asks for expense receipts if any are incurred — this build used no paid APIs (the router runs entirely locally with no external calls), so there's nothing to report.
