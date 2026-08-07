@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from take_home_router.schemas import (
     HealthResponse,
@@ -34,6 +35,17 @@ def create_app(service: ClassifierService | None = None) -> FastAPI:
             "and never invokes a generation provider."
         ),
         lifespan=lifespan,
+    )
+
+    # The router ships with no frontend of its own, so CORS is wide open by
+    # default to unblock local development. Tighten `allow_origins` to the
+    # deployed frontend origin(s) before shipping this anywhere real.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
     )
 
     @app.get("/healthz", response_model=HealthResponse, tags=["operations"])
