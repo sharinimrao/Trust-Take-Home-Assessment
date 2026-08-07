@@ -5,7 +5,7 @@ export default function TopBar({ session, onSignOut, health }) {
       style={{ borderColor: 'var(--line)', background: '#fff' }}
     >
       <div className="flex items-center gap-2.5">
-        <span className="font-mono-brand text-sm font-semibold tracking-[0.1em]" style={{ color: 'var(--ink)' }}>
+        <span className="font-display-brand text-sm tracking-[0.02em]" style={{ color: 'var(--ink)' }}>
           TRUST<span style={{ color: 'var(--signal)' }}>ROUTER</span>
         </span>
         <StatusDot ok={health?.status === 'ok'} />
